@@ -1,4 +1,3 @@
-```markdown
 # 🎓 FEU-OSDMS
 ### Online Student Disciplinary Management System
 
@@ -15,13 +14,13 @@ This project is fully containerized. You **do not** need to install PHP, MySQL, 
 * **Port Availability**: Ensure **XAMPP MySQL is STOPPED**. This project requires port `3306` to be free.
 
 ### 2. Initial Setup
-Clone the repository and create your environment file:
+Clone the repository and prepare your local environment file:
 ```bash
 cp .env.example .env
 
 ```
 
-> **Note:** The `.env.example` is pre-configured with the credentials for the Docker internal network.
+> **Note:** The `.env.example` is pre-configured with the internal Docker credentials (`DB_HOST=db`, `DB_USERNAME=sail`, `DB_PASSWORD=password`).
 
 ### 3. Spin Up the System
 
@@ -65,7 +64,7 @@ docker-compose exec app php artisan storage:link
 
 | Resource | Access Detail |
 | --- | --- |
-| **Web Interface** | [http://localhost:8000](https://www.google.com/search?q=http://localhost:8000) |
+| **Web Interface** | `http://localhost:8000` |
 | **Database Host** | `127.0.0.1` |
 | **Database Port** | `3306` |
 | **User / Pass** | `sail` / `password` |
@@ -80,5 +79,3 @@ docker-compose exec app php artisan storage:link
 * **`app/`**: Core logic including Models (User, IncidentReport) and Controllers.
 * **`resources/views/`**: Dashboard and Student Directory templates.
 * **`database/seeders/`**: Contains the `DemoDataSeeder` for evaluation.
-
-```
