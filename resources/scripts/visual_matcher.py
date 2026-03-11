@@ -19,7 +19,7 @@ def generate_error(msg):
     sys.exit(0)
 
 # --- MAIN DISCOVERY ENGINE (Registry Intelligence) ---
-def process_batch(target_img_path, target_desc, batch_json_path):
+def process_batch(target_img_path, batch_json_path):
     try:
         # 1. Validation
         if not os.path.exists(target_img_path):
@@ -83,7 +83,7 @@ def process_batch(target_img_path, target_desc, batch_json_path):
                 if len(good) >= 10:
                     src_pts = np.float32([kp_target[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
                     dst_pts = np.float32([kp_db[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-                    M, mask_geo = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
+                    _, mask_geo = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 10.0)
 
                     if mask_geo is not None:
                         inliers = int(np.sum(mask_geo))
@@ -122,8 +122,7 @@ def process_batch(target_img_path, target_desc, batch_json_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("target_img")
-    parser.add_argument("target_desc") # Swapped to match Controller order
-    parser.add_argument("batch_json") # Swapped to match Controller order
+    parser.add_argument("batch_json")
     args = parser.parse_args()
 
-    process_batch(args.target_img, args.target_desc, args.batch_json)
+    process_batch(args.target_img, args.batch_json)

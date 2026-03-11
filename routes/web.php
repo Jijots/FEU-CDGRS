@@ -2,13 +2,13 @@
 
 use App\Http\Controllers\AssetMatchingController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\GateEntryController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StudentProfileController;
 use App\Http\Controllers\ViolationController;
 use App\Http\Controllers\ViolationReportController;
 use App\Http\Controllers\ConfiscatedItemController;
 use App\Http\Controllers\IncidentReportController; // Added this import
+use App\Http\Controllers\CounselingReferralController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ReportController;
 
@@ -70,19 +70,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/violations/{id}', [ViolationController::class, 'update'])->name('violations.update');
     Route::delete('/violations/{id}', [ViolationController::class, 'destroy'])->name('violations.destroy'); // Soft Delete
 
-    // --- GATE ENTRY TERMINAL (CRUD) ---
-    Route::get('/gate-entry', [GateEntryController::class, 'index'])->name('gate.index');
-
-    // ARCHIVE ROUTES
-    Route::get('/gate-entry/archived', [GateEntryController::class, 'archived'])->name('gate.archived');
-    Route::post('/gate-entry/{id}/restore', [GateEntryController::class, 'restore'])->name('gate.restore');
-    Route::delete('/gate-entry/{id}/force-delete', [GateEntryController::class, 'forceDelete'])->name('gate.force-delete');
-
-    Route::post('/gate-entry', [GateEntryController::class, 'store'])->name('gate.store');
-    Route::get('/gate-entry/{id}/edit', [GateEntryController::class, 'edit'])->name('gate.edit');
-    Route::put('/gate-entry/{id}', [GateEntryController::class, 'update'])->name('gate.update');
-    Route::delete('/gate-entry/{id}', [GateEntryController::class, 'destroy'])->name('gate.destroy'); // Soft Delete
-
     // --- INCIDENT REPORTS ---
     // ARCHIVE ROUTES
     Route::get('/incidents/archived', [IncidentReportController::class, 'archived'])->name('incidents.archived');
@@ -90,6 +77,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/incidents/{id}/force-delete', [IncidentReportController::class, 'forceDelete'])->name('incidents.force-delete');
     // Resource Routes
     Route::resource('incidents', IncidentReportController::class);
+
+    // --- GUIDANCE & COUNSELING REFERRALS ---
+    // ARCHIVE ROUTES (Must be above resource/id routes)
+    Route::get('/referrals/archived', [CounselingReferralController::class, 'archived'])->name('referrals.archived');
+    Route::post('/referrals/{id}/restore', [CounselingReferralController::class, 'restore'])->name('referrals.restore');
+    Route::delete('/referrals/{id}/force-delete', [CounselingReferralController::class, 'forceDelete'])->name('referrals.force-delete');
+    // Resource Routes (handles index, create, store, show, edit, update, destroy)
+    Route::resource('referrals', CounselingReferralController::class);
 
     // --- USER ACCOUNT MANAGEMENT ---
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

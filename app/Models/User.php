@@ -65,4 +65,20 @@ class User extends Authenticatable
     {
         return $this->hasMany(LostItem::class, 'student_id');
     }
+
+    /**
+     * Counseling referrals for this student.
+     */
+    public function counselingReferralsAsStudent()
+    {
+        return $this->hasMany(CounselingReferral::class, 'student_id');
+    }
+
+    /**
+     * Counseling referrals created by this administrator.
+     */
+    public function counselingReferralsAsReferrer()
+    {
+        return $this->hasMany(CounselingReferral::class, 'referrer_id');
+    }
 }

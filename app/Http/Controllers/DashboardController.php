@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\LostItem;
-use App\Models\GateEntry;
 use App\Models\Violation;
 use App\Models\IncidentReport; // Import the IncidentReport model
 use Illuminate\Http\Request;
@@ -26,7 +25,7 @@ class DashboardController extends Controller
         $lostCount = LostItem::where('report_type', 'Lost')->count();
         $foundCount = LostItem::where('report_type', 'Found')->count();
 
-        // 2. Gate Entry Violations
+        // 2. Active Violations Monitor
         $activeViolations = Violation::where('status', 'Active')->count();
 
         // 3. System Archives
@@ -47,7 +46,7 @@ class DashboardController extends Controller
             ->take(3) // Top 3 locations
             ->get();
 
-        // Incident Hotspots: Where security issues happen most frequently
+        // Incident Hotspots: Where incidents are reported most frequently
         $incidentHotspots = IncidentReport::select('incident_location', DB::raw('count(*) as total'))
             ->groupBy('incident_location')
             ->orderBy('total', 'desc')
