@@ -3,8 +3,8 @@
 
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
             <div>
-                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">ID Recovery Vault</h1>
-                <p class="text-base text-slate-500 font-medium mt-1">Manage pending identifications and view resolution history.</p>
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Official ID Recovery Vault</h1>
+                <p class="text-base text-slate-500 font-medium mt-1">Registry of surrendered identifications awaiting owner verification and collection.</p>
             </div>
 
             <div class="flex items-center gap-3 w-full md:w-auto">
@@ -19,10 +19,10 @@
 
         <div class="mb-6 flex space-x-6 border-b-2 border-slate-200">
             <a href="{{ route('assets.lost-ids') }}" class="pb-3 px-2 text-sm font-bold transition-colors {{ !$isHistory ? 'text-[#004d32] border-b-4 border-[#004d32]' : 'text-slate-400 hover:text-slate-600 border-b-4 border-transparent' }}">
-                Pending Verification
+                Pending Collection
             </a>
             <a href="{{ route('assets.lost-ids', ['view' => 'history']) }}" class="pb-3 px-2 text-sm font-bold transition-colors {{ $isHistory ? 'text-[#004d32] border-b-4 border-[#004d32]' : 'text-slate-400 hover:text-slate-600 border-b-4 border-transparent' }}">
-                Resolved History
+                Resolution History
             </a>
         </div>
 
@@ -32,8 +32,8 @@
                     <thead>
                         <tr class="bg-slate-50 border-b-2 border-slate-200">
                             <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">Tracking No.</th>
-                            <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">ID Information</th>
-                            <th class="px-8 py-5 text-center text-sm font-bold text-slate-500 uppercase tracking-wide">System Status</th>
+                            <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">Identified Student</th>
+                            <th class="px-8 py-5 text-center text-sm font-bold text-slate-500 uppercase tracking-wide">Verification Status</th>
                             <th class="px-8 py-5 text-right text-sm font-bold text-slate-500 uppercase tracking-wide">Actions</th>
                         </tr>
                     </thead>
@@ -43,47 +43,59 @@
                                 <td class="px-8 py-5">
                                     <span class="text-sm font-bold text-slate-800">#{{ $item->tracking_number }}</span>
                                 </td>
+
                                 <td class="px-8 py-5">
-                                    @if(isset($item->suggested_owner))
-                                        <p class="text-sm font-bold text-[#004d32]">{{ $item->suggested_owner->name }}</p>
-                                        <p class="text-xs font-semibold text-slate-500 mt-0.5">{{ $item->suggested_owner->id_number }}</p>
-                                    @else
-                                        <p class="text-sm font-medium text-slate-600 truncate max-w-xs">{{ $item->description }}</p>
-                                    @endif
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                                            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                        </div>
+                                        <div>
+                                            @if(isset($item->suggested_owner))
+                                                <p class="text-sm font-bold text-[#004d32]">{{ $item->suggested_owner->name }}</p>
+                                                <p class="text-xs font-semibold text-slate-500 mt-0.5">Student ID: {{ $item->suggested_owner->id_number }}</p>
+                                            @else
+                                                <p class="text-sm font-bold text-slate-700">Unidentified Record</p>
+                                                <p class="text-xs font-medium text-slate-400 mt-0.5 truncate max-w-xs">{{ $item->description }}</p>
+                                            @endif
+                                        </div>
+                                    </div>
                                 </td>
+
                                 <td class="px-8 py-5 text-center">
                                     @if($isHistory)
                                         <span class="inline-flex px-4 py-1.5 rounded-lg text-xs font-bold uppercase bg-green-100 text-green-700 border border-green-200 shadow-sm">
-                                            Successfully Claimed
+                                            Claimed by Owner
                                         </span>
-                                    @elseif(isset($item->confidence))
-                                        <span class="inline-flex px-4 py-1.5 rounded-lg text-xs font-bold uppercase bg-yellow-50 text-yellow-700 border border-yellow-200 shadow-sm">
-                                            Smart Match: {{ $item->confidence * 100 }}%
+                                    @elseif(isset($item->suggested_owner))
+                                        <span class="inline-flex px-4 py-1.5 rounded-lg text-xs font-bold uppercase bg-[#FECB02] text-[#004d32] border border-[#FECB02] shadow-sm">
+                                            Registry Match Found
                                         </span>
                                     @else
                                         <span class="inline-flex px-4 py-1.5 rounded-lg text-xs font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
-                                            Awaiting Verification
+                                            Awaiting Identity Scan
                                         </span>
                                     @endif
                                 </td>
+
                                 <td class="px-8 py-5 text-right flex items-center justify-end gap-2">
                                     @if(!$isHistory)
-                                        <a href="{{ route('assets.show', $item->id) }}" title="Scan & Verify" class="px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-lg hover:bg-[#004d32] transition-colors shadow-sm inline-block border-2 border-transparent">
-                                            Verify
+                                        <a href="{{ route('assets.show', $item->id) }}" title="Review Identity" class="px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-[#004d32] transition-colors shadow-sm inline-block border-2 border-transparent">
+                                            Review
                                         </a>
                                     @else
-                                        <a href="{{ route('assets.show', $item->id) }}" title="View Record" class="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors shadow-sm inline-block border-2 border-slate-200">
-                                            View Details
+                                        <a href="{{ route('assets.show', $item->id) }}" title="View Resolution" class="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors shadow-sm inline-block border-2 border-slate-200">
+                                            View
                                         </a>
                                     @endif
 
-                                    <a href="{{ route('assets.edit', $item->id) }}" title="Edit Record" class="px-4 py-2 text-slate-600 bg-slate-100 text-sm font-bold rounded-lg hover:bg-amber-100 hover:text-amber-800 transition-colors shadow-sm">
+                                    <a href="{{ route('assets.edit', $item->id) }}" title="Modify Record" class="px-4 py-2 text-slate-600 bg-slate-100 text-sm font-bold rounded-lg hover:bg-amber-100 hover:text-amber-800 transition-colors shadow-sm">
                                         Edit
                                     </a>
-                                    <form action="{{ route('assets.destroy', $item->id) }}" method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to archive this ID record?');">
+
+                                    <form action="{{ route('assets.destroy', $item->id) }}" method="POST" class="inline-block" onsubmit="return confirm('Archive this ID record?');">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" title="Archive Record" class="px-4 py-2 text-slate-600 bg-slate-100 text-sm font-bold rounded-lg hover:bg-red-100 hover:text-red-800 transition-colors shadow-sm">
+                                        <button type="submit" title="Archive ID" class="px-4 py-2 text-slate-600 bg-slate-100 text-sm font-bold rounded-lg hover:bg-red-100 hover:text-red-800 transition-colors shadow-sm">
                                             Archive
                                         </button>
                                     </form>
@@ -92,7 +104,7 @@
                         @empty
                             <tr>
                                 <td colspan="4" class="px-8 py-32 text-center text-slate-400 font-bold text-base">
-                                    {{ $isHistory ? 'No claimed IDs found in the history.' : 'The ID Vault is currently empty. No pending IDs found.' }}
+                                    {{ $isHistory ? 'No collection history found.' : 'The recovery vault is currently empty.' }}
                                 </td>
                             </tr>
                         @endforelse

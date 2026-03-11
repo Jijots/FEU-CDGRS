@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // --- INTELLITHINGS MODULE (Asset Management & AI Matching) ---
     // ARCHIVE ROUTES (Must be above resource/id routes)
+    Route::get('/assets/{id}/find-matches', [App\Http\Controllers\AssetMatchingController::class, 'findMatches'])->name('assets.find-matches');
     Route::get('/assets/archived', [AssetMatchingController::class, 'archived'])->name('assets.archived');
     Route::post('/assets/{id}/restore', [AssetMatchingController::class, 'restore'])->name('assets.restore');
     Route::delete('/assets/{id}/force-delete', [AssetMatchingController::class, 'forceDelete'])->name('assets.force-delete');
