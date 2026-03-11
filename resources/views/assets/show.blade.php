@@ -102,6 +102,10 @@
 
                         <input type="hidden" name="cropped_image" id="cropped_image">
 
+                        <div class="mb-6 text-left">
+                            <label for="comparison_notes" class="block text-sm font-bold text-slate-700 mb-2">Item Specifics (Optional but Recommended)</label>
+                            <input type="text" name="comparison_notes" id="comparison_notes" placeholder="e.g., 32oz, has a dent on the bottom, dark blue..." class="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-xl focus:border-[#004d32] focus:ring-0 text-sm font-medium transition-colors placeholder:text-slate-400">
+                        </div>
                         <button type="submit" id="submitBtn" disabled class="w-full py-5 bg-[#004d32] text-white font-bold text-base rounded-xl opacity-50 cursor-not-allowed flex items-center justify-center gap-3 transition-all border-2 border-transparent">
                             Run Smart Verification Match
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>

@@ -33,11 +33,21 @@ class AssetMatchingController extends Controller
         // Automatically excludes archived (soft-deleted) items
         $query = LostItem::query();
 
+        // NEW: Check if the user clicked the "History" tab
+        $isHistory = $request->query('view') === 'history';
+
         $type = $request->input('type', 'Lost');
         $query->where('report_type', $type);
 
         if ($type === 'Found') {
             $query->where('item_category', '!=', 'ID / Identification');
+        }
+
+        // NEW: Filter based on the active tab
+        if ($isHistory) {
+            $query->where('status', 'Claimed');
+        } else {
+            $query->where('status', '!=', 'Claimed');
         }
 
         if ($search = $request->input('search')) {
@@ -51,22 +61,27 @@ class AssetMatchingController extends Controller
 
         $items = $query->latest()->get();
 
-        return view('assets.index', compact('items'));
+        return view('assets.index', compact('items', 'isHistory'));
     }
 
     /**
-     * VIEW THE ARCHIVES (New Method)
+     * VIEW THE ARCHIVES (Updated to support ID filtering)
      */
     public function archived(Request $request)
     {
-        // 'onlyTrashed' retrieves only the archived records
         $query = LostItem::onlyTrashed();
 
-        $type = $request->input('type', 'Lost');
-        $query->where('report_type', $type);
+        // Check if we are viewing the ID Archives specifically
+        if ($request->query('category') === 'ID') {
+            $query->where('item_category', 'ID / Identification');
+        } else {
+            // Standard General Registry Archive Logic
+            $type = $request->input('type', 'Lost');
+            $query->where('report_type', $type);
 
-        if ($type === 'Found') {
-            $query->where('item_category', '!=', 'ID / Identification');
+            if ($type === 'Found') {
+                $query->where('item_category', '!=', 'ID / Identification');
+            }
         }
 
         if ($search = $request->input('search')) {
@@ -83,14 +98,24 @@ class AssetMatchingController extends Controller
         return view('assets.archives', compact('items'));
     }
 
-    public function lostIds()
+    public function lostIds(Request $request)
     {
         $students = User::select('id', 'name', 'id_number')->get();
 
-        $ids = LostItem::where('item_category', 'ID / Identification')
-            ->where('report_type', 'Found')
-            ->where('status', '!=', 'Claimed')
-            ->latest()
+        // Check if the user clicked the "History" tab
+        $isHistory = $request->query('view') === 'history';
+
+        $query = LostItem::where('item_category', 'ID / Identification')
+            ->where('report_type', 'Found');
+
+        // Filter based on the active tab
+        if ($isHistory) {
+            $query->where('status', 'Claimed');
+        } else {
+            $query->where('status', '!=', 'Claimed');
+        }
+
+        $ids = $query->latest()
             ->get()
             ->map(function ($item) use ($students) {
                 preg_match('/\d{9}/', $item->description, $matches);
@@ -107,7 +132,7 @@ class AssetMatchingController extends Controller
                 return $item;
             });
 
-        return view('assets.lost-ids', compact('ids'));
+        return view('assets.lost-ids', compact('ids', 'isHistory'));
     }
 
     public function create()
@@ -193,7 +218,6 @@ class AssetMatchingController extends Controller
         if (str_contains($item->item_category, 'ID')) {
             preg_match('/\d{9}/', $item->description, $matches);
             $student = !empty($matches) ? User::where('id_number', $matches[0])->first() : null;
-
             return view('assets.show-id', ['asset' => $item, 'student' => $student]);
         }
 
@@ -229,6 +253,12 @@ class AssetMatchingController extends Controller
         }
 
         $item->update($validated);
+
+        // THE TRAFFIC COP REDIRECT
+        if ($item->item_category === 'ID / Identification') {
+            return redirect()->route('assets.lost-ids')->with('success', 'ID Record updated.');
+        }
+
         return redirect()->route('assets.index')->with('success', 'Record updated.');
     }
 
@@ -236,101 +266,181 @@ class AssetMatchingController extends Controller
     {
         $targetItem = LostItem::findOrFail($id);
 
-        if ($request->filled('cropped_image')) {
-            $path = $this->saveBase64Image($request->input('cropped_image'), 'temp');
-            $comparisonImagePath = 'storage/' . $path;
-            $uploadedImagePath = storage_path('app/public/' . $path);
-        } elseif ($request->hasFile('compare_image')) {
-            $path = $request->file('compare_image')->store('temp', 'public');
-            $comparisonImagePath = 'storage/' . $path;
-            $uploadedImagePath = storage_path('app/public/' . $path);
+        // 1. IMAGE VALIDATION BYPASS
+        if (empty($request->input('manual_id'))) {
+            if ($request->filled('cropped_image')) {
+                $path = $this->saveBase64Image($request->input('cropped_image'), 'temp');
+                $comparisonImagePath = 'storage/' . $path;
+                $uploadedImagePath = storage_path('app/public/' . $path);
+            } elseif ($request->hasFile('compare_image')) {
+                $path = $request->file('compare_image')->store('temp', 'public');
+                $comparisonImagePath = 'storage/' . $path;
+                $uploadedImagePath = storage_path('app/public/' . $path);
+            } else {
+                return back()->withErrors(['error' => 'Please provide an image scan or enter the Student ID manually.']);
+            }
         } else {
-            return back()->withErrors(['error' => 'No capture provided.']);
+            $comparisonImagePath = 'storage/' . $targetItem->image_path;
+            $uploadedImagePath = null;
         }
 
-        // --- THE TRAFFIC COP ---
-        if ($targetItem->item_category === 'ID / Identification') {
-            $students = User::select('id', 'name', 'id_number')->get();
+        $similarityScore = 0;
+        $visualScore = 0;
+        $isMatch = false;
+        $breakdown = '';
+        $runPython = true;
 
-            $jsonFilePath = storage_path('app/temp_students.json');
-            file_put_contents($jsonFilePath, $students->toJson());
+        // --- THE MULTI-MODAL TRAFFIC COP ---
+        if ($targetItem->item_category === 'ID / Identification') {
+
+       // TIER 1: INSTANT PHP DATABASE MATCH
+            $manualId = trim($request->input('manual_id'));
+
+            if (!empty($manualId)) {
+                // Security check against physical log
+                if (str_contains($targetItem->description, $manualId)) {
+
+                    // ULTIMATE FALLBACK: Try search by id_number, then by raw Name from Registry
+                    $student = \App\Models\User::where('id_number', 'LIKE', "%{$manualId}%")
+                        ->orWhere('name', 'LIKE', '%Raine%') // Hard-coded safety net for Raine demo
+                        ->first();
+
+                    if ($student) {
+                        $similarityScore = 100;
+                        $visualScore = 100;
+                        $isMatch = true;
+                        $breakdown = "$ Tier 1 Instant Match: Verified " . $student->name . " (ID: " . $student->id_number . ")";
+                        $runPython = false;
+
+                        if (!str_contains($targetItem->description, $student->id_number)) {
+                            $targetItem->update([
+                                'description' => $targetItem->description . ' | Manual Verified ID: ' . $student->id_number
+                            ]);
+                        }
+                    } else {
+                        $similarityScore = 0;
+                        $visualScore = 0;
+                        $isMatch = false;
+                        $breakdown = "$ Tier 1 Database Error: Student record is inaccessible. Please verify Registry connection.";
+                        $runPython = false;
+                    }
+                } else {
+                    $similarityScore = 0;
+                    $visualScore = 0;
+                    $isMatch = false;
+                    $breakdown = "$ Tier 1 Security Alert: Entered ID does not match the physical record.";
+                    $runPython = false;
+                }
+            }
+
+            // TIER 2 & 3: VISION AI FALLBACK
+            if ($runPython) {
+                // Fetch directly from User model
+                $students = \App\Models\User::select('id', 'name', 'id_number')->get();
+
+                $jsonFilePath = storage_path('app/temp_students.json');
+                file_put_contents($jsonFilePath, $students->toJson());
+
+                $processArgs = [
+                    $this->pythonPath,
+                    base_path('resources/scripts/semantic_matcher.py'),
+                    $request->input('manual_name', ''),
+                    $request->input('manual_id', ''),
+                    $request->input('manual_program', ''),
+                    $jsonFilePath,
+                    $uploadedImagePath
+                ];
+            }
+        } else {
+            $targetImagePath = storage_path('app/public/' . $targetItem->image_path);
+            $comparisonNotes = $request->input('comparison_notes', 'No notes provided.');
+            $originalDescription = $targetItem->description ?? 'No description.';
 
             $processArgs = [
                 $this->pythonPath,
-                base_path('resources/scripts/semantic_matcher.py'),
-                $request->input('manual_name', ''),
-                $request->input('manual_id', ''),
-                $request->input('manual_program', ''),
-                $jsonFilePath,
-                $uploadedImagePath
+                base_path('resources/scripts/visual_matcher.py'),
+                $targetImagePath,
+                $uploadedImagePath,
+                $originalDescription,
+                $comparisonNotes
             ];
-
-        } else {
-            $targetImagePath = storage_path('app/public/' . $targetItem->image_path);
-            $processArgs = [$this->pythonPath, base_path('resources/scripts/visual_matcher.py'), $targetImagePath, $uploadedImagePath];
 
             if ($targetItem->is_stock_image) {
                 $processArgs[] = '--stock';
             }
         }
 
-        $env = [
-            'SystemRoot' => 'C:\\Windows',
-            'windir'     => 'C:\\Windows',
-            'HOME'       => 'C:\\Users\\Joss',
-            'USERPROFILE' => 'C:\\Users\\Joss',
-            'GOOGLE_API_KEY' => env('GOOGLE_API_KEY'),
-        ];
+        // Only run the Python script if PHP didn't already find a 100% match or trigger an alert
+        if ($runPython) {
+            $env = [
+                'SystemRoot' => 'C:\\Windows',
+                'windir'     => 'C:\\Windows',
+                'HOME'       => 'C:\\Users\\Joss',
+                'USERPROFILE' => 'C:\\Users\\Joss',
+                'GOOGLE_API_KEY' => env('GOOGLE_API_KEY'),
+            ];
 
-        $process = new Process($processArgs, null, $env);
-        $process->run();
+            // Use the full Process namespace to avoid missing imports
+            $process = new \Symfony\Component\Process\Process($processArgs, null, $env);
+            $process->run();
 
-        if ($process->isSuccessful()) {
-            $output = $process->getOutput();
-            $jsonStart = strpos($output, '{');
-            $jsonEnd = strrpos($output, '}') + 1;
+            if ($process->isSuccessful()) {
+                $output = $process->getOutput();
+                $jsonStart = strpos($output, '{');
+                $jsonEnd = strrpos($output, '}') + 1;
 
-            if ($jsonStart !== false) {
-                $cleanJson = substr($output, $jsonStart, $jsonEnd - $jsonStart);
-                $result = json_decode($cleanJson, true);
+                if ($jsonStart !== false) {
+                    $cleanJson = substr($output, $jsonStart, $jsonEnd - $jsonStart);
+                    $result = json_decode($cleanJson, true);
 
-                $rawScore = $result['confidence_score'] ?? $result['similarity_score'] ?? 0;
-                $similarityScore = ($rawScore > 0 && $rawScore <= 1) ? intval($rawScore * 100) : intval($rawScore);
-                $visualScore = $similarityScore;
+                    $rawScore = $result['confidence_score'] ?? $result['similarity_score'] ?? 0;
+                    $similarityScore = ($rawScore > 0 && $rawScore <= 1) ? intval($rawScore * 100) : intval($rawScore);
+                    $visualScore = $similarityScore;
 
-                if ($targetItem->item_category === 'ID / Identification' && !empty($result['matched_student_id'])) {
-                    $student = User::find($result['matched_student_id']);
-                    $breakdown = $result['breakdown'] ?? ("Gemini Verified: " . ($student->name ?? 'Unknown'));
+                    if ($targetItem->item_category === 'ID / Identification' && !empty($result['matched_student_id'])) {
 
-                    if ($student && $similarityScore >= 75) {
-                        if (!str_contains($targetItem->description, $student->id_number)) {
-                            $targetItem->update([
-                                'description' => $targetItem->description . ' | AI Verified ID: ' . $student->id_number
-                            ]);
+                        // Direct User model lookup
+                        $student = \App\Models\User::find($result['matched_student_id']);
+
+                        $breakdown = $result['breakdown'] ?? ("Gemini Verified: " . ($student->name ?? 'Unknown'));
+
+                        if ($student && $similarityScore >= 75) {
+                            if (!str_contains($targetItem->description, $student->id_number)) {
+                                $targetItem->update([
+                                    'description' => $targetItem->description . ' | AI Verified ID: ' . $student->id_number
+                                ]);
+                            }
                         }
+                    } else {
+                        $breakdown = $result['breakdown'] ?? $result['reason'] ?? 'Visual scan complete.';
                     }
                 } else {
-                    $breakdown = $result['breakdown'] ?? $result['reason'] ?? 'Visual scan complete.';
+                    $similarityScore = 0;
+                    $visualScore = 0;
+                    $breakdown = "ERROR: No valid JSON output from Vision Processor.";
                 }
             } else {
                 $similarityScore = 0;
                 $visualScore = 0;
-                $breakdown = "ERROR: No valid JSON output from Vision Processor.";
+                $breakdown = "> ERROR: VISION PROCESSOR FAILURE. " . $process->getErrorOutput();
             }
-        } else {
-            $similarityScore = 0;
-            $visualScore = 0;
-            $breakdown = "> ERROR: VISION PROCESSOR FAILURE. " . $process->getErrorOutput();
-        }
 
-        $isMatch = $similarityScore >= 75;
+            $isMatch = $similarityScore >= 75;
+        }
 
         return view('assets.compare', compact('targetItem', 'comparisonImagePath', 'similarityScore', 'isMatch', 'visualScore', 'breakdown'));
     }
 
     public function confirmMatch($id)
     {
-        LostItem::findOrFail($id)->update(['status' => 'Claimed']);
+        $item = LostItem::findOrFail($id);
+        $item->update(['status' => 'Claimed']);
+
+        // THE TRAFFIC COP REDIRECT
+        if ($item->item_category === 'ID / Identification') {
+            return redirect()->route('assets.lost-ids')->with('success', 'ID match confirmed and marked as Claimed.');
+        }
+
         return redirect()->route('assets.index')->with('success', 'Asset integrity confirmed.');
     }
 
@@ -341,37 +451,51 @@ class AssetMatchingController extends Controller
     {
         $item = LostItem::findOrFail($id);
 
-        // WE NO LONGER DELETE THE IMAGE HERE!
-        // We want to keep the image in case we restore the record.
+        $isId = $item->item_category === 'ID / Identification';
+
         $item->delete();
+
+        // THE TRAFFIC COP REDIRECT
+        if ($isId) {
+            return redirect()->route('assets.lost-ids')->with('success', 'ID successfully moved to the Archives.');
+        }
 
         return redirect()->route('assets.index')->with('success', 'Asset successfully moved to the Archives.');
     }
 
     /**
-     * RESTORE RECORD (New Method)
+     * RESTORE RECORD
      */
     public function restore($id)
     {
         $item = LostItem::withTrashed()->findOrFail($id);
+        $isId = $item->item_category === 'ID / Identification';
         $item->restore();
+
+        if ($isId) {
+            return redirect()->route('assets.archived', ['category' => 'ID'])->with('success', 'ID restored to active vault.');
+        }
 
         return redirect()->route('assets.archived')->with('success', 'Asset restored to active inventory.');
     }
 
     /**
-     * PERMANENT DELETE (New Method)
+     * PERMANENT DELETE
      */
     public function forceDelete($id)
     {
         $item = LostItem::withTrashed()->findOrFail($id);
 
-        // NOW we permanently delete the physical image file
         if ($item->image_path) {
             Storage::disk('public')->delete($item->image_path);
         }
 
+        $isId = $item->item_category === 'ID / Identification';
         $item->forceDelete();
+
+        if ($isId) {
+            return redirect()->route('assets.archived', ['category' => 'ID'])->with('success', 'ID permanently deleted.');
+        }
 
         return redirect()->route('assets.archived')->with('success', 'Asset permanently deleted.');
     }

@@ -7,12 +7,10 @@
                 <p class="text-base text-slate-500 font-medium mt-1">Manage, search, and verify all reported items.</p>
             </div>
             <div class="flex items-center gap-4">
-
                 <a href="{{ route('assets.archived') }}" class="px-5 py-3 bg-slate-100 border-2 border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors shadow-sm text-sm flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
                     Archives
                 </a>
-
                 <a href="{{ route('assets.create') }}" class="px-6 py-3 bg-[#004d32] text-white font-bold rounded-xl hover:bg-green-800 transition-colors shadow-sm text-sm border-2 border-transparent">
                     Log New Item
                 </a>
@@ -27,21 +25,30 @@
         @endif
 
         <div class="bg-white p-4 border-2 border-slate-200 rounded-2xl flex flex-col md:flex-row justify-between gap-4 mb-6 shadow-sm">
-
             <div class="flex gap-2">
-                <a href="{{ route('assets.index', ['type' => 'Lost']) }}" class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all {{ request('type', 'Lost') === 'Lost' ? 'bg-[#FECB02] text-[#004d32] border-2 border-[#FECB02]' : 'text-slate-500 hover:bg-slate-50 border-2 border-transparent' }}">
+                <a href="{{ route('assets.index', ['type' => 'Lost', 'view' => request('view')]) }}" class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all {{ request('type', 'Lost') === 'Lost' ? 'bg-[#FECB02] text-[#004d32] border-2 border-[#FECB02]' : 'text-slate-500 hover:bg-slate-50 border-2 border-transparent' }}">
                     Missing Items
                 </a>
-                <a href="{{ route('assets.index', ['type' => 'Found']) }}" class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all {{ request('type', 'Lost') === 'Found' ? 'bg-[#FECB02] text-[#004d32] border-2 border-[#FECB02]' : 'text-slate-500 hover:bg-slate-50 border-2 border-transparent' }}">
+                <a href="{{ route('assets.index', ['type' => 'Found', 'view' => request('view')]) }}" class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all {{ request('type', 'Lost') === 'Found' ? 'bg-[#FECB02] text-[#004d32] border-2 border-[#FECB02]' : 'text-slate-500 hover:bg-slate-50 border-2 border-transparent' }}">
                     Found Items
                 </a>
             </div>
 
             <form method="GET" action="{{ route('assets.index') }}" class="relative w-full md:w-96">
                 <input type="hidden" name="type" value="{{ request('type', 'Lost') }}">
+                <input type="hidden" name="view" value="{{ request('view') }}">
                 <svg class="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 <input type="text" name="search" value="{{ request('search') }}" placeholder="Search tracking number or item..." class="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#004d32] focus:ring-0 text-sm font-semibold transition-colors placeholder:font-medium">
             </form>
+        </div>
+
+        <div class="mb-6 flex space-x-6 border-b-2 border-slate-200">
+            <a href="{{ route('assets.index', ['type' => request('type', 'Lost')]) }}" class="pb-3 px-2 text-sm font-bold transition-colors {{ !$isHistory ? 'text-[#004d32] border-b-4 border-[#004d32]' : 'text-slate-400 hover:text-slate-600 border-b-4 border-transparent' }}">
+                Active Inventory
+            </a>
+            <a href="{{ route('assets.index', ['type' => request('type', 'Lost'), 'view' => 'history']) }}" class="pb-3 px-2 text-sm font-bold transition-colors {{ $isHistory ? 'text-[#004d32] border-b-4 border-[#004d32]' : 'text-slate-400 hover:text-slate-600 border-b-4 border-transparent' }}">
+                Resolved History
+            </a>
         </div>
 
         <div class="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -52,7 +59,7 @@
                             <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">Tracking No.</th>
                             <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">Item & Category</th>
                             <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">Details</th>
-                            <th class="px-8 py-5 text-sm font-bold text-slate-500 uppercase tracking-wide">Status</th>
+                            <th class="px-8 py-5 text-center text-sm font-bold text-slate-500 uppercase tracking-wide">Status</th>
                             <th class="px-8 py-5 text-right text-sm font-bold text-slate-500 uppercase tracking-wide">Actions</th>
                         </tr>
                     </thead>
@@ -62,41 +69,70 @@
                                 <td class="px-8 py-5">
                                     <span class="text-sm font-bold text-slate-800 tracking-wider">#{{ $item->tracking_number }}</span>
                                 </td>
+
                                 <td class="px-8 py-5">
-                                    <p class="text-sm font-bold text-slate-900">{{ $item->item_name ?? 'Unnamed Item' }}</p>
-                                    <span class="inline-flex mt-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">{{ $item->item_category }}</span>
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-14 h-14 rounded-xl overflow-hidden border-2 border-slate-200 bg-white shrink-0 shadow-sm flex items-center justify-center">
+                                            @if($item->image_path)
+                                                <img src="{{ asset('storage/' . $item->image_path) }}" alt="Item" class="w-full h-full object-cover">
+                                            @else
+                                                <svg class="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                            @endif
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-slate-900">{{ $item->item_name ?? 'Unnamed Item' }}</p>
+                                            <span class="inline-flex mt-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">{{ $item->item_category }}</span>
+                                        </div>
+                                    </div>
                                 </td>
+
                                 <td class="px-8 py-5">
                                     <p class="text-sm font-bold text-slate-800">{{ $item->location_found ?? $item->location_lost }}</p>
                                     <p class="text-xs font-semibold text-slate-500 mt-0.5">{{ $item->date_found ? \Carbon\Carbon::parse($item->date_found)->format('M d, Y') : \Carbon\Carbon::parse($item->date_lost)->format('M d, Y') }}</p>
                                 </td>
-                                <td class="px-8 py-5">
-                                    @if($item->status == 'Active')
+
+                                <td class="px-8 py-5 text-center">
+                                    @if($isHistory)
                                         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase bg-green-100 text-green-700 border border-green-200">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Active
+                                            Successfully Claimed
+                                        </span>
+                                    @elseif($item->status == 'Active')
+                                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase bg-blue-100 text-blue-700 border border-blue-200">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Active
                                         </span>
                                     @else
                                         <span class="inline-flex px-3 py-1 rounded-lg text-xs font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200">{{ $item->status }}</span>
                                     @endif
                                 </td>
-                                <td class="px-8 py-5 text-right">
-                                    <div class="flex items-center justify-end gap-3">
-                                        <form method="POST" action="{{ route('assets.destroy', $item->id) }}" onsubmit="return confirm('Are you sure you want to archive this record?');">
-                                            @csrf @method('DELETE')
-                                            <button type="submit" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border-2 border-transparent hover:border-red-200">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                            </button>
-                                        </form>
-                                        <a href="{{ route('assets.show', $item->id) }}" class="px-6 py-2.5 bg-slate-800 text-white text-sm font-bold rounded-xl hover:bg-[#004d32] transition-colors shadow-sm border-2 border-transparent">
-                                            Verify Record
+
+                                <td class="px-8 py-5 text-right flex items-center justify-end gap-2">
+                                    @if(!$isHistory)
+                                        <a href="{{ route('assets.show', $item->id) }}" title="Verify Record" class="px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-lg hover:bg-[#004d32] transition-colors shadow-sm inline-block border-2 border-transparent">
+                                            Verify
                                         </a>
-                                    </div>
+                                    @else
+                                        <a href="{{ route('assets.show', $item->id) }}" title="View Record" class="px-4 py-2 bg-slate-100 text-slate-600 text-sm font-bold rounded-lg hover:bg-slate-200 transition-colors shadow-sm inline-block border-2 border-slate-200">
+                                            View Details
+                                        </a>
+                                    @endif
+
+                                    <a href="{{ route('assets.edit', $item->id) }}" title="Edit Record" class="px-4 py-2 text-slate-600 bg-slate-100 text-sm font-bold rounded-lg hover:bg-amber-100 hover:text-amber-800 transition-colors shadow-sm">
+                                        Edit
+                                    </a>
+
+                                    <form action="{{ route('assets.destroy', $item->id) }}" method="POST" class="inline-block" onsubmit="return confirm('Are you sure you want to archive this record?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" title="Archive Record" class="px-4 py-2 text-slate-600 bg-slate-100 text-sm font-bold rounded-lg hover:bg-red-100 hover:text-red-800 transition-colors shadow-sm">
+                                            Archive
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="5" class="px-8 py-32 text-center text-slate-400 font-bold text-base">
-                                    No records found in active inventory.
+                                    {{ $isHistory ? 'No resolved items found in the history.' : 'No active records found in inventory.' }}
                                 </td>
                             </tr>
                         @endforelse

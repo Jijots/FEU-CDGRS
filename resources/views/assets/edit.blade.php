@@ -3,9 +3,9 @@
 
         <div class="mb-10 flex items-center justify-between border-b-2 border-slate-100 pb-6">
             <div>
-                <a href="{{ route('assets.index') }}" class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-[#004d32] transition-colors mb-2">
+                <a href="{{ $item->item_category === 'ID / Identification' ? route('assets.lost-ids') : route('assets.index') }}" class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-[#004d32] transition-colors mb-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                    Back to Registry
+                    Back to {{ $item->item_category === 'ID / Identification' ? 'ID Vault' : 'Registry' }}
                 </a>
                 <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Update Record #{{ $item->tracking_number }}</h1>
             </div>
@@ -78,7 +78,7 @@
             </div>
 
             <div class="flex flex-col sm:flex-row gap-4 pt-6 border-t-2 border-slate-100">
-                <a href="{{ route('assets.index') }}" class="w-full sm:w-auto px-8 py-4 text-center text-base font-bold text-slate-600 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">Cancel Updates</a>
+                <a href="{{ $item->item_category === 'ID / Identification' ? route('assets.lost-ids') : route('assets.index') }}" class="w-full sm:w-auto px-8 py-4 text-center text-base font-bold text-slate-600 bg-white border-2 border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">Cancel Updates</a>
                 <button type="submit" class="w-full py-4 bg-[#004d32] text-white text-base font-bold rounded-xl hover:bg-green-800 transition-colors shadow-sm text-center flex-1 border-2 border-transparent">
                     Save Updates
                 </button>

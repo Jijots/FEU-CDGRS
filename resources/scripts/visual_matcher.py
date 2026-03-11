@@ -19,7 +19,50 @@ def generate_error(msg):
     print(json.dumps({"confidence_score": 0, "visual_score": 0, "breakdown": msg}))
     sys.exit(0)
 
-def calculate_similarity(img1_path, img2_path, is_stock):
+# --- NEW: GEMINI SEMANTIC TIE-BREAKER ---
+def verify_text_match(desc1, desc2):
+    """Uses Gemini to cross-reference the original item description with the user's notes."""
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        return False, "Skipped text check (No API Key)"
+
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
+        prompt = f"""
+        Analyze these two item descriptions from a Lost & Found system to check if they are the EXACT SAME physical item.
+
+        Original Item logged in system: "{desc1}"
+        Notes from the person verifying: "{desc2}"
+
+        Rule 1: If there is a direct contradiction in size, capacity, brand, or dominant color (e.g., one is "32oz" and the other is "22oz", or one is "Red" and the other is "Blue"), this is a HARD CONFLICT.
+        Rule 2: If one description is vague (e.g., "Aquaflask") and the other is specific (e.g., "32oz Aquaflask"), that is NO CONFLICT.
+        Rule 3: If both are vague or seem to describe the same thing, that is NO CONFLICT.
+
+        Return ONLY a raw JSON string (no markdown, no formatting):
+        {{"conflict_found": true, "reason": "Explanation of the conflict"}}
+        or
+        {{"conflict_found": false, "reason": "No conflict detected"}}
+        """
+
+        response = model.generate_content(prompt)
+        result_text = response.text.strip()
+
+        # Clean markdown formatting if present
+        if result_text.startswith("```json"):
+            result_text = result_text[7:-3].strip()
+        elif result_text.startswith("```"):
+            result_text = result_text[3:-3].strip()
+
+        data = json.loads(result_text)
+        return data.get("conflict_found", False), data.get("reason", "")
+    except Exception as e:
+        return False, f"Text analysis skipped: {str(e)}"
+
+# --- MAIN OpenCV MATCHING ---
+def calculate_similarity(img1_path, img2_path, desc1, desc2, is_stock):
     try:
         if not os.path.exists(img1_path) or not os.path.exists(img2_path):
             generate_error("System error: The requested image file could not be found.")
@@ -36,7 +79,7 @@ def calculate_similarity(img1_path, img2_path, is_stock):
         mask1 = np.ones(img1.shape[:2], dtype=np.uint8) * 255
         mask2 = np.ones(img2.shape[:2], dtype=np.uint8) * 255
 
-        # --- UNIVERSAL COLOR CHECK ---
+        # UNIVERSAL COLOR CHECK
         h1 = cv2.calcHist([img1], [0, 1, 2], mask1, [8, 8, 8], [0, 256, 0, 256, 0, 256])
         h2 = cv2.calcHist([img2], [0, 1, 2], mask2, [8, 8, 8], [0, 256, 0, 256, 0, 256])
         color_sim = cv2.compareHist(cv2.normalize(h1, h1), cv2.normalize(h2, h2), cv2.HISTCMP_CORREL)
@@ -63,7 +106,6 @@ def calculate_similarity(img1_path, img2_path, is_stock):
             for m_n in matches:
                 if len(m_n) == 2:
                     m, n = m_n
-                    # RRL STRICT 0.75 RATIO ENFORCED
                     if m.distance < 0.75 * n.distance:
                         good.append(m)
 
@@ -76,6 +118,12 @@ def calculate_similarity(img1_path, img2_path, is_stock):
                 if mask_geo is not None:
                     inliers = int(np.sum(mask_geo))
                     inlier_ratio = inliers / len(good)
+
+                    # Aspect Ratio Distortion Fix
+                    scale_x = np.sqrt(M[0, 0]**2 + M[1, 0]**2)
+                    scale_y = np.sqrt(M[0, 1]**2 + M[1, 1]**2)
+                    aspect_ratio_distortion = abs(1.0 - (scale_x / scale_y)) if scale_y > 0 else 0
+                    is_different_size = False # Feature: Allow upside-down and 360-degree matches
 
                     if is_stock:
                         struct_val = min(100, (inliers / 10) * 100)
@@ -92,12 +140,16 @@ def calculate_similarity(img1_path, img2_path, is_stock):
 
                         if struct_score >= 75:
                             final_score = max(struct_score, (struct_score * 0.8) + (color_score * 0.2))
-                            msg = "Strong match confirmed based on the object's physical shape and colors."
+                            msg = "Strong match confirmed based on physical shape and colors."
                         else:
                             final_score = (struct_score * 0.5) + (color_score * 0.5)
                             msg = "Partial match found based on similarities in shape and color."
 
-                        final_score = min(98, max(0, final_score))
+                    if is_different_size:
+                        final_score = min(68, final_score - 25)
+                        msg = "Rejected: Logos match, but physical proportions differ."
+
+                    final_score = min(98, max(0, final_score))
                 else:
                     final_score = max(15, color_score * 0.5)
                     msg = "Could not confirm physical shape; similarity is based on colors only."
@@ -108,7 +160,13 @@ def calculate_similarity(img1_path, img2_path, is_stock):
             final_score = 5
             msg = "Could not identify any matching features between the images."
 
-        # Simplify output label for the UI
+        # --- THE MULTI-MODAL TIE-BREAKER ---
+        if final_score >= 70: # Only run Gemini if the computer vision thinks it's a match
+            conflict_found, conflict_reason = verify_text_match(desc1, desc2)
+            if conflict_found:
+                final_score = min(65, final_score - 30) # Force a fail score
+                msg = f"AI Rejection: Visuals match, but details contradict ({conflict_reason})."
+
         print(json.dumps({
             "confidence_score": int(final_score),
             "visual_score": int(final_score),
@@ -122,11 +180,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("img1")
     parser.add_argument("img2")
+
+    # NEW: Accept the text descriptions
+    parser.add_argument("desc1", nargs='?', default="No description.")
+    parser.add_argument("desc2", nargs='?', default="No notes provided.")
     parser.add_argument("--stock", action="store_true")
 
     try:
         args = parser.parse_args()
-        calculate_similarity(args.img1, args.img2, args.stock)
+        calculate_similarity(args.img1, args.img2, args.desc1, args.desc2, args.stock)
     except SystemExit:
         pass
     except Exception as e:

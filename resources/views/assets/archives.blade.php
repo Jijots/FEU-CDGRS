@@ -4,12 +4,12 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b-2 border-slate-300 pb-5">
             <div>
                 <div class="flex items-center gap-3 mb-1">
-                    <a href="{{ route('assets.index') }}" class="text-slate-400 hover:text-indigo-600 transition-colors">
+                    <a href="{{ request('category') === 'ID' ? route('assets.lost-ids') : route('assets.index') }}" title="Back to {{ request('category') === 'ID' ? 'ID Vault' : 'Registry' }}" class="text-slate-400 hover:text-[#004d32] transition-colors">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                     </a>
                     <h1 class="text-3xl font-extrabold text-slate-500 tracking-tight flex items-center gap-3">
                         <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
-                        Archived Assets
+                        {{ request('category') === 'ID' ? 'Archived ID Cards' : 'Archived Assets' }}
                     </h1>
                 </div>
                 <p class="text-sm text-slate-400 mt-1 font-bold uppercase tracking-widest ml-9">Deleted & Hidden Records</p>
